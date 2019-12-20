@@ -140,37 +140,42 @@ export class GraphQL {
               new Error('Global fetch API or polyfill unavailable.')
             )
     const cacheValue = {}
+    const errors = {}
     const cacheValuePromise = fetcher(url, options)
       .then(
         response => {
           fetchResponse = response
 
           if (!response.ok)
-            cacheValue.httpError = {
+            errors.httpError = {
               status: response.status,
               statusText: response.statusText
             }
 
           return response.json().then(
-            ({ errors, data }) => {
+            ({ errors: graphQLErrors, data }) => {
               // JSON parse ok.
-              if (!errors && !data) cacheValue.parseError = 'Malformed payload.'
-              if (errors) cacheValue.graphQLErrors = errors
+              if (!graphQLErrors && !data)
+                cacheValue.parseError = 'Malformed payload.'
+              if (graphQLErrors) errors.graphQLErrors = graphQLErrors
               if (data) cacheValue.data = data
             },
             ({ message }) => {
               // JSON parse error.
-              cacheValue.parseError = message
+              errors.parseError = message
             }
           )
         },
         ({ message }) => {
-          cacheValue.fetchError = message
+          errors.fetchError = message
         }
       )
       .then(() => {
         // Cache the operation.
-        this.cache[cacheKey] = cacheValue
+        this.cache[cacheKey] = {
+          ...(Object.keys(errors).length && { errors }),
+          ...cacheValue
+        }
 
         // Clear the loaded operation.
         delete this.operations[cacheKey]
